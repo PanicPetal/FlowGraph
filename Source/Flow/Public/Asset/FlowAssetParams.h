@@ -105,5 +105,10 @@ protected:
 
 	void ModifyAndRebuildPropertiesMap();
 	void RebuildPropertiesMap();
+
+	// LOCAL MOD: change-detecting reconcile helpers (see .cpp); they Modify()/dirty only on a real change.
+	TMap<FName, TInstancedStruct<FFlowDataPinValue>> BuildPropertiesMap(const TArray<FFlowNamedDataPinProperty>& InProperties) const;
+	static bool AreNamedPropertiesIdentical(const TArray<FFlowNamedDataPinProperty>& A, const TArray<FFlowNamedDataPinProperty>& B);
+	bool ApplyPropertiesIfChanged(TArray<FFlowNamedDataPinProperty>&& NewProperties);
 #endif
 };

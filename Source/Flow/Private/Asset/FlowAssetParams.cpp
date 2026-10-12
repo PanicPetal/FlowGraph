@@ -152,27 +152,55 @@ EFlowReconcilePropertiesResult UFlowAssetParams::ReconcilePropertiesWithStartNod
 	const TSoftObjectPtr<UFlowAsset>& InOwnerFlowAsset,
 	TArray<FFlowNamedDataPinProperty>& MutablePropertiesFromStartNode)
 {
-	OwnerFlowAsset = InOwnerFlowAsset;
-
-	if (OwnerFlowAsset.IsNull())
+	if (InOwnerFlowAsset.IsNull())
 	{
 		return EFlowReconcilePropertiesResult::Error_InvalidAsset;
 	}
 
+	// LOCAL MOD: OwnerFlowAsset is (re)assigned below, inside the change detection, not unconditionally here.
 	const EFlowReconcilePropertiesResult PropertiesMatchResult = FFlowAssetParamsUtils::CheckPropertiesMatch(Properties, MutablePropertiesFromStartNode);
 	const FDateTime ParamsTimestamp = FFlowAssetParamsUtils::GetLastSavedTimestampForObject(this);
 
 	if (FlowAssetLastSaveTimeStamp >= ParamsTimestamp ||
 		EFlowReconcilePropertiesResult_Classifiers::IsErrorResult(PropertiesMatchResult))
 	{
-		ConfigureFlowAssetParams(InOwnerFlowAsset, nullptr, MutablePropertiesFromStartNode);
+		// LOCAL MOD: the Start node is authoritative here, but this runs on every PostLoad of the owning
+		// Flow asset, so only touch the transaction buffer / dirty the package when the result actually
+		// differs from what is already stored. Otherwise merely opening the graph dirties the params asset.
+		TArray<FFlowNamedDataPinProperty> NewProperties = MutablePropertiesFromStartNode;
+		FFlowNamedDataPinProperty::ConfigurePropertiesForFlowAssetParams(NewProperties);
 
-		return EFlowReconcilePropertiesResult::ParamsPropertiesUpdated;
+		const bool bReferencesChanged = !ParentParams.AssetPtr.IsNull() || !(OwnerFlowAsset == InOwnerFlowAsset);
+		if (bReferencesChanged)
+		{
+			Modify();
+			ParentParams.AssetPtr = nullptr;
+			OwnerFlowAsset = InOwnerFlowAsset;
+		}
+
+		const bool bPropertiesChanged = ApplyPropertiesIfChanged(MoveTemp(NewProperties));
+		if (bReferencesChanged && !bPropertiesChanged)
+		{
+			MarkPackageDirty();
+		}
+
+		return (bReferencesChanged || bPropertiesChanged)
+			? EFlowReconcilePropertiesResult::ParamsPropertiesUpdated
+			: EFlowReconcilePropertiesResult::NoChanges;
+	}
+
+	if (!(OwnerFlowAsset == InOwnerFlowAsset))
+	{
+		Modify();
+		OwnerFlowAsset = InOwnerFlowAsset;
+		MarkPackageDirty();
 	}
 
 	MutablePropertiesFromStartNode = Properties;
 
-	FFlowNamedDataPinProperty::ConfigurePropertiesForFlowAssetParams(MutablePropertiesFromStartNode);
+	// LOCAL MOD: these properties live on the Start node, so they take the Start node configuration
+	// (bMayChangeNameAndType = true); the params configuration would lock renaming in the graph.
+	FFlowNamedDataPinProperty::ConfigurePropertiesForFlowAssetStartNode(MutablePropertiesFromStartNode);
 
 	return EFlowReconcilePropertiesResult::AssetPropertyValuesUpdated;
 }
@@ -263,19 +291,21 @@ EFlowReconcilePropertiesResult UFlowAssetParams::ReconcilePropertiesWithParentPa
 		}
 	}
 
-	for (FFlowNamedDataPinProperty& LocalProp : Properties)
+	for (const FFlowNamedDataPinProperty& LocalProp : Properties)
 	{
 		if (!FFlowAssetParamsUtils::FindPropertyByGuid(ParentProps, LocalProp.Guid))
 		{
-			LocalProp.bIsOverride = true;
-
-			NewProperties.Add(LocalProp);
+			FFlowNamedDataPinProperty& NewProp = NewProperties.Add_GetRef(LocalProp);
+			NewProp.bIsOverride = true;
 		}
 	}
 
-	Properties = NewProperties;
-
-	ModifyAndRebuildPropertiesMap();
+	// LOCAL MOD: this runs from PostLoad/PreSaveRoot/cook; only dirty the package when the flattened
+	// result actually differs from what is stored, otherwise loading a child params asset dirties it.
+	if (!ApplyPropertiesIfChanged(MoveTemp(NewProperties)))
+	{
+		return EFlowReconcilePropertiesResult::NoChanges;
+	}
 
 	return EFlowReconcilePropertiesResult::ParamsPropertiesUpdated;
 }
@@ -351,19 +381,73 @@ void UFlowAssetParams::ModifyAndRebuildPropertiesMap()
 
 void UFlowAssetParams::RebuildPropertiesMap()
 {
-	PropertyMap.Reset();
+	PropertyMap = BuildPropertiesMap(Properties);
+}
 
-	for (const FFlowNamedDataPinProperty& Prop : Properties)
+// LOCAL MOD: change-detecting variants used by the reconcile paths, which run on every asset load.
+
+TMap<FName, TInstancedStruct<FFlowDataPinValue>> UFlowAssetParams::BuildPropertiesMap(const TArray<FFlowNamedDataPinProperty>& InProperties) const
+{
+	TMap<FName, TInstancedStruct<FFlowDataPinValue>> NewMap;
+	NewMap.Reserve(InProperties.Num());
+
+	for (const FFlowNamedDataPinProperty& Prop : InProperties)
 	{
 		if (Prop.IsValid())
 		{
-			PropertyMap.Add(Prop.Name, Prop.DataPinValue);
+			NewMap.Add(Prop.Name, Prop.DataPinValue);
 		}
 		else
 		{
 			UE_LOG(LogFlow, Warning, TEXT("Skipping invalid property %s during rebuild for %s"), *Prop.Name.ToString(), *GetPathName());
 		}
 	}
+
+	return NewMap;
+}
+
+bool UFlowAssetParams::AreNamedPropertiesIdentical(const TArray<FFlowNamedDataPinProperty>& A, const TArray<FFlowNamedDataPinProperty>& B)
+{
+	// ArePropertyArraysEqual compares name, guid, struct type and value; the editor flags are
+	// part of the stored state too, so a flag flip alone must still count as a change.
+	if (!FFlowAssetParamsUtils::ArePropertyArraysEqual(A, B))
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < A.Num(); ++Index)
+	{
+		if (A[Index].bIsOverride != B[Index].bIsOverride ||
+			A[Index].bMayChangeNameAndType != B[Index].bMayChangeNameAndType)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool UFlowAssetParams::ApplyPropertiesIfChanged(TArray<FFlowNamedDataPinProperty>&& NewProperties)
+{
+	TMap<FName, TInstancedStruct<FFlowDataPinValue>> NewPropertyMap = BuildPropertiesMap(NewProperties);
+
+	const bool bChanged =
+		!AreNamedPropertiesIdentical(Properties, NewProperties) ||
+		!PropertyMap.OrderIndependentCompareEqual(NewPropertyMap);
+
+	if (!bChanged)
+	{
+		return false;
+	}
+
+	Modify();
+
+	Properties = MoveTemp(NewProperties);
+	PropertyMap = MoveTemp(NewPropertyMap);
+
+	MarkPackageDirty();
+
+	return true;
 }
 #endif
 

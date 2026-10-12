@@ -5,6 +5,8 @@
 
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
+#include "Misc/PackageName.h"
+#include "UObject/Package.h"
 
 #if WITH_EDITOR
 #include "Asset/FlowAssetParams.h"
@@ -30,8 +32,22 @@ FDateTime FFlowAssetParamsUtils::GetLastSavedTimestampForObject(const UObject* O
 		return FDateTime::MinValue();
 	}
 
-	const FString PackagePath = Object->GetPathName();
-	return IFileManager::Get().GetTimeStamp(*PackagePath);
+	// LOCAL MOD: resolve the package to its on-disk file. An object path is not a filename, so asking the
+	// file manager for it yields MinValue for every asset and every "which is newer" comparison degenerates.
+	const UPackage* Package = Object->GetPackage();
+	if (!Package)
+	{
+		return FDateTime::MinValue();
+	}
+
+	FString PackageFilename;
+	if (!FPackageName::DoesPackageExist(Package->GetName(), &PackageFilename))
+	{
+		// Never saved (e.g. freshly created asset)
+		return FDateTime::MinValue();
+	}
+
+	return IFileManager::Get().GetTimeStamp(*PackageFilename);
 }
 
 EFlowReconcilePropertiesResult FFlowAssetParamsUtils::CheckPropertiesMatch(
