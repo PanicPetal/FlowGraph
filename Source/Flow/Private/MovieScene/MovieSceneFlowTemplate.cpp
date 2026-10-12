@@ -2,7 +2,7 @@
 
 #include "MovieScene/MovieSceneFlowTemplate.h"
 #include "MovieScene/MovieSceneFlowTrack.h"
-#include "Nodes/Actor/FlowNode_PlayLevelSequence.h"
+#include "Nodes/FlowNode.h"
 
 #include "Evaluation/MovieSceneEvaluation.h"
 #include "IMovieScenePlayer.h"
@@ -30,9 +30,10 @@ struct FFlowTrackExecutionToken final : IMovieSceneExecutionToken
 		{
 			for (UObject* EventReceiver : Player.GetEventContexts())
 			{
-				if (UFlowNode_PlayLevelSequence* FlowNode = Cast<UFlowNode_PlayLevelSequence>(EventReceiver))
+				// LOCAL MOD: any UFlowNode receives sequencer events, so custom sequence nodes do not have to derive from PlayLevelSequence.
+				if (UFlowNode* FlowNode = Cast<UFlowNode>(EventReceiver))
 				{
-					FlowNode->TriggerEvent(EventName);
+					FlowNode->TriggerOutput(*EventName, false);
 				}
 			}
 		}
