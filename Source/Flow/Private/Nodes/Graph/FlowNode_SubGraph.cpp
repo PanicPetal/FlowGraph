@@ -136,7 +136,7 @@ FFlowDataPinResult UFlowNode_SubGraph::TrySupplyDataPin(const FName PinName) con
 		return Super::TrySupplyDataPin(PinName);
 	}
 
-	// Check cached output data pin values first — output pins are never "input connected",
+	// Check cached output data pin values first, output pins are never "input connected",
 	// so this must come before IsInputConnected to avoid a spurious "unknown input pin" error.
 	if (const TInstancedStruct<FFlowDataPinValue>* CachedValue = CachedOutputDataPinValues.Values.Find(PinName))
 	{

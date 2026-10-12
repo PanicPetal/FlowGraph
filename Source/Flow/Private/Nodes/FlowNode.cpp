@@ -1488,7 +1488,7 @@ bool UFlowNode::TryInitializePreloadHelper()
 	UFlowAsset* FlowAsset = GetFlowAsset();
 	if (!IsValid(FlowAsset))
 	{
-		LogError(TEXT("IFlowPreloadableInterface node has no valid FlowAsset during InitializeInstance — PreloadHelper will not be created."));
+		LogError(TEXT("IFlowPreloadableInterface node has no valid FlowAsset during InitializeInstance, PreloadHelper will not be created."));
 		return false;
 	}
 
@@ -1498,7 +1498,7 @@ bool UFlowNode::TryInitializePreloadHelper()
 	const UScriptStruct* HelperType = PreloadPolicy.GetPreloadHelperStructType(*this);
 	if (!IsValid(HelperType))
 	{
-		LogError(TEXT("FFlowPreloadPolicy::GetPreloadHelperStructType returned null — PreloadHelper will not be created."));
+		LogError(TEXT("FFlowPreloadPolicy::GetPreloadHelperStructType returned null, PreloadHelper will not be created."));
 		return false;
 	}
 

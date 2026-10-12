@@ -1989,7 +1989,7 @@ void UFlowAsset::ClearAllDeferredTriggerScopes()
 
 void UFlowAsset::CancelAndWarnForUnflushedDeferredTriggers()
 {
-	// Aggressively drop any pending deferred triggers — graph is done
+	// Aggressively drop any pending deferred triggers, graph is done
 	// In normal execution these should have been flushed via PopDeferredTransitionScope() in TriggerInputDirect
 	// Remaining scopes here usually mean:
 	//   - early/abnormal termination (e.g. FinishFlowInstance called from unexpected place)
@@ -2010,7 +2010,7 @@ void UFlowAsset::CancelAndWarnForUnflushedDeferredTriggers()
 
 			if (TotalDroppedTriggers == 0 && !Triggers.IsEmpty())
 			{
-				UE_LOG(LogFlow, Warning, TEXT("FlowAsset '%s' is finishing with %d lingering deferred transition scope(s) — dropping them. "
+				UE_LOG(LogFlow, Warning, TEXT("FlowAsset '%s' is finishing with %d lingering deferred transition scope(s), dropping them. "
 					"This is usually unexpected and may indicate a bug or abnormal termination."),
 				    *GetName(), DeferredTransitionScopes.Num());
 			}

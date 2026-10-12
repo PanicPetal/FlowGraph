@@ -104,7 +104,7 @@ EFlowPreloadResult UFlowNode_PlayLevelSequence::PreloadContent()
 
 	// Bind a weak delegate so NotifyPreloadComplete() is called when streaming finishes.
 	// If the asset is already cached, RequestAsyncLoad fires the delegate synchronously
-	// (safe — PendingPreloadCount is already set by TriggerPreload before this call).
+	// (safe, PendingPreloadCount is already set by TriggerPreload before this call).
 	PreloadHandle = StreamableManager.RequestAsyncLoad(
 		Sequence.ToSoftObjectPath(),
 		FStreamableDelegate::CreateWeakLambda(this, [this]()
