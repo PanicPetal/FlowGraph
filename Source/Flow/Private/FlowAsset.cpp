@@ -1569,8 +1569,27 @@ FFlowAssetSaveData UFlowAsset::SaveInstance(TArray<FFlowAssetSaveData>& SavedFlo
 	OnSave();
 
 	// iterate nodes
+	// LOCAL MOD: walk EVERY entry point, not just the default one. A branch that is only reachable
+	// from a CustomInput node was previously invisible to the save, which silently dropped the active nodes of any
+	// subgraph driven through custom inputs. The IteratedNodes set is shared across the walks, so a node reachable
+	// from several entries is still recorded exactly once and LoadInstance's reverse iteration is unaffected.
 	TArray<UFlowNode*> NodesInExecutionOrder;
-	GetNodesInExecutionOrder<UFlowNode>(GetDefaultEntryNode(), NodesInExecutionOrder);
+	{
+		TSet<TObjectKey<UFlowNode>> IteratedNodes;
+		if (UFlowNode* DefaultEntryNode = GetDefaultEntryNode())
+		{
+			GetNodesInExecutionOrder_Recursive<UFlowNode>(DefaultEntryNode, IteratedNodes, NodesInExecutionOrder);
+		}
+
+		for (UFlowNode_CustomInput* CustomInputNode : CustomInputNodes)
+		{
+			if (CustomInputNode && !IteratedNodes.Contains(CustomInputNode))
+			{
+				GetNodesInExecutionOrder_Recursive<UFlowNode>(CustomInputNode, IteratedNodes, NodesInExecutionOrder);
+			}
+		}
+	}
+
 	for (UFlowNode* Node : NodesInExecutionOrder)
 	{
 		if (Node && Node->ShouldSave())
@@ -1606,11 +1625,30 @@ FFlowAssetSaveData UFlowAsset::SaveInstance(TArray<FFlowAssetSaveData>& SavedFlo
 
 void UFlowAsset::LoadInstance(const FFlowAssetSaveData& AssetRecord)
 {
+	LoadInstance(AssetRecord, nullptr, nullptr);
+}
+
+void UFlowAsset::LoadInstance(const FFlowAssetSaveData& AssetRecord, IFlowDataPinValueSupplierInterface* DataPinValueSupplier, IFlowGraphOutputDataReceiverInterface* InOutputDataReceiver)
+{
+	// LOCAL MOD: mirror StartFlow's plumbing before any node is restored, because node OnLoad
+	// implementations resolve data pins and would otherwise read property defaults instead of the real values.
+	InitializeOutputDataReceiverAndValues(InOutputDataReceiver);
+
 	FMemoryReader MemoryReader(AssetRecord.AssetData, true);
 	FFlowArchive Ar(MemoryReader);
 	Serialize(Ar);
 
 	PreStartFlow();
+
+	// LOCAL MOD: the Start node's supplier reference is Transient and never saved, so re-apply it
+	// here exactly as StartFlow does. The Start node is not triggered: activation state comes from the records.
+	if (UFlowNode* ConnectedEntryNode = GetDefaultEntryNode())
+	{
+		if (IFlowNodeWithExternalDataPinSupplierInterface* ExternalPinSuppliedNode = Cast<IFlowNodeWithExternalDataPinSupplierInterface>(ConnectedEntryNode))
+		{
+			ExternalPinSuppliedNode->SetDataPinValueSupplier(DataPinValueSupplier);
+		}
+	}
 
 	// iterate graph "from the end", backward to execution order
 	// prevents issue when the preceding node would instantly fire output to a not-yet-loaded node
