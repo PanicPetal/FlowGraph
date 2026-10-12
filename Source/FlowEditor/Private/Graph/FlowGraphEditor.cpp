@@ -1731,17 +1731,32 @@ void SFlowGraphEditor::FocusViewport() const
 	if (SelectedNodes.Num() == 1)
 	{
 		const UFlowGraphNode* SelectedNode = SelectedNodes[0];
-		if (const UFlowNode* FlowNode = Cast<UFlowNode>(SelectedNode->GetFlowNodeBase()))
-		{
-			if (UFlowNode* InspectedInstance = FlowNode->GetInspectedInstance())
-			{
-				if (AActor* ActorToFocus = InspectedInstance->GetActorToFocus())
-				{
-					GEditor->SelectNone(false, false, false);
-					GEditor->SelectActor(ActorToFocus, true, true, true);
-					GEditor->NoteSelectionChange();
 
-					GEditor->MoveViewportCamerasToActor(*ActorToFocus, false);
+		// LOCAL MOD: focus from the graph's own node (not only a PIE-inspected instance), so actor and box
+		// focus also work while editing outside of PIE; falls back to GetBoxToFocus when there is no actor.
+		if (UFlowNode* FlowNode = Cast<UFlowNode>(SelectedNode->GetFlowNodeBase()))
+		{
+			if (AActor* ActorToFocus = FlowNode->GetActorToFocus())
+			{
+				GEditor->SelectNone(false, false, false);
+				GEditor->SelectActor(ActorToFocus, true, true, true);
+				GEditor->NoteSelectionChange();
+
+				GEditor->MoveViewportCamerasToActor(*ActorToFocus, false);
+
+				const FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+				const TSharedPtr<SDockTab> LevelEditorTab = LevelEditorModule.GetLevelEditorInstanceTab().Pin();
+				if (LevelEditorTab.IsValid())
+				{
+					LevelEditorTab->DrawAttention();
+				}
+			}
+			else
+			{
+				FBox BoxToFocus = FlowNode->GetBoxToFocus();
+				if (BoxToFocus.IsValid)
+				{
+					GEditor->MoveViewportCamerasToBox(BoxToFocus, false);
 
 					const FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 					const TSharedPtr<SDockTab> LevelEditorTab = LevelEditorModule.GetLevelEditorInstanceTab().Pin();

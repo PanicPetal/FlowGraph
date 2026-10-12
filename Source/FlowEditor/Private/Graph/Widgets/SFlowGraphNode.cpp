@@ -1209,6 +1209,28 @@ bool SFlowGraphNode::ShouldDropDraggedNodesAsSubNodes(const TArray<TSharedRef<SG
 	return true;
 }
 
+void SFlowGraphNode::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	SGraphNode::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+
+	// LOCAL MOD: debug draw hook for the selected node.
+	if (FlowGraphNode && IsFlowGraphNodeSelected(FlowGraphNode))
+	{
+		if (const UFlowNodeBase* FlowNode = FlowGraphNode->GetFlowNodeBase())
+		{
+			// Priority for debug draw is play world, then editor world if not in PIE
+			if (GEditor->PlayWorld)
+			{
+				FlowNode->DrawDebug(GEditor->PlayWorld);
+			}
+			else if (GWorld)
+			{
+				FlowNode->DrawDebug(GWorld);
+			}
+		}
+	}
+}
+
 TSharedPtr<SGraphNode> SFlowGraphNode::GetSubNodeUnderCursor(const FGeometry& WidgetGeometry, const FPointerEvent& MouseEvent)
 {
 	// We just need to find the one WidgetToFind among our descendants.

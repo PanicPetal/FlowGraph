@@ -96,6 +96,8 @@ public:
 	                      FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const bool bParentEnabled) const override;
 
 	virtual FReply OnMouseButtonDown(const FGeometry& SenderGeometry, const FPointerEvent& MouseEvent) override;
+	// LOCAL MOD: drives UFlowNodeBase::DrawDebug for the selected node every frame.
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	virtual FSlateColor GetNodeTitleColor() const override;
 	virtual FSlateColor GetNodeBodyColor() const override;

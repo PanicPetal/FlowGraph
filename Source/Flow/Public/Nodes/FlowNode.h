@@ -473,6 +473,8 @@ public:
 	virtual FString GetAssetPath();
 	virtual UObject* GetAssetToEdit();
 	virtual AActor* GetActorToFocus();
+	/* LOCAL MOD: optional bounds to frame in the level viewport when the node has no actor to focus (see SFlowGraphEditor::FocusViewport). */
+	virtual FBox GetBoxToFocus();
 #endif
 
 protected:

@@ -84,8 +84,10 @@ public:
 #if WITH_EDITOR
 	virtual FString GetNodeDescription() const override;
 	virtual FString GetStatusString() const override;
-	
-protected:	
+
+	virtual AActor* GetActorToFocus() override;
+
+protected:
 	virtual EDataValidationResult ValidateNode() override;
 #endif
 };
