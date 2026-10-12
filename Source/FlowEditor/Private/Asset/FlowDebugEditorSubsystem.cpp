@@ -131,7 +131,7 @@ void UFlowDebugEditorSubsystem::ResumeSession(UFlowAsset& FlowAssetInstance)
 
 void UFlowDebugEditorSubsystem::StopSession()
 {
-	// Drop any pending deferred triggers — we are stopping the session entirely
+	// Drop any pending deferred triggers, we are stopping the session entirely
 	if (HaltedOnFlowAssetInstance.IsValid())
 	{
 		UFlowSubsystem* FlowSubsystem = HaltedOnFlowAssetInstance->GetFlowSubsystem();
