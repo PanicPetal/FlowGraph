@@ -432,6 +432,9 @@ public:
 	/* Called by owning FlowNode to add to its Status String. */
 	virtual FString GetStatusString() const;
 
+	/* LOCAL MOD: per-frame debug drawing hook for the node selected in the graph editor (see SFlowGraphNode::Tick). */
+	virtual void DrawDebug(UWorld* World) const { };
+
 protected:
 	/* Information displayed while node is working - displayed over node as NodeInfoPopup. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "Get Status String"))

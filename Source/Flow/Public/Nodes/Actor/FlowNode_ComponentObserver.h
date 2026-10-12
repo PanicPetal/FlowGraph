@@ -46,7 +46,7 @@ public:
 	virtual void ExecuteInput(const FName& PinName) override;
 	virtual void OnLoad_Implementation() override;
 
-protected:	
+protected:
 	virtual void StartObserving();
 	virtual void StopObserving();
 
@@ -68,14 +68,16 @@ protected:
 	UFUNCTION()
 	virtual void OnEventReceived();
 
-public:	
+public:
 	virtual void Cleanup() override;
 
 #if WITH_EDITOR
 	virtual FString GetNodeDescription() const override;
 	virtual FString GetStatusString() const override;
-	
-protected:	
+
+	virtual AActor* GetActorToFocus() override;
+
+protected:
 	virtual EDataValidationResult ValidateNode() override;
 #endif
 };

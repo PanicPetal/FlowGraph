@@ -80,6 +80,8 @@ protected:
 
 	// SWidget
 	virtual FReply OnMouseButtonDown(const FGeometry& SenderGeometry, const FPointerEvent& MouseEvent) override;
+	// LOCAL MOD: drives UFlowNodeBase::DrawDebug for the selected node every frame.
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	// --
 
 	FSlateColor GetNodeTitleColor() const;

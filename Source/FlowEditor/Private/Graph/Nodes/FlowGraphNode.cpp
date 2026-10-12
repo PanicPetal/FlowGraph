@@ -815,8 +815,8 @@ bool UFlowGraphNode::IsContentPreloaded() const
 
 bool UFlowGraphNode::CanFocusViewport() const
 {
-	UFlowNode* FlowNode = Cast<UFlowNode>(NodeInstance);
-	return FlowNode ? (GEditor->bIsSimulatingInEditor && FlowNode->GetActorToFocus()) : false;
+	// LOCAL MOD: focusing also works outside of PIE (see SFlowGraphEditor::FocusViewport), so any node instance qualifies.
+	return NodeInstance != nullptr;
 }
 
 bool UFlowGraphNode::CanJumpToDefinition() const
