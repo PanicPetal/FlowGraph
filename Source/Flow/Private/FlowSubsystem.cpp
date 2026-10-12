@@ -468,6 +468,11 @@ void UFlowSubsystem::OnGameLoaded(TArray<FFlowComponentSaveData>& FlowComponents
 
 void UFlowSubsystem::LoadRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const FString& SavedAssetInstanceName, const bool bAllowMultipleInstances)
 {
+	LoadRootFlow(Owner, FlowAsset, SavedAssetInstanceName, bAllowMultipleInstances, nullptr);
+}
+
+void UFlowSubsystem::LoadRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const FString& SavedAssetInstanceName, const bool bAllowMultipleInstances, const TScriptInterface<IFlowDataPinValueSupplierInterface> DataPinValueSupplier)
+{
 	if (FlowAsset == nullptr || SavedAssetInstanceName.IsEmpty())
 	{
 		return;
@@ -477,7 +482,10 @@ void UFlowSubsystem::LoadRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const F
 	{
 		if (UFlowAsset* LoadedInstance = CreateRootFlow(Owner, FlowAsset, bAllowMultipleInstances))
 		{
-			LoadedInstance->LoadInstance(*AssetRecord);
+			// LOCAL MOD: pass the supplier StartRootFlow would have passed, so the restored graph
+			// resolves its Start node pins from the same source instead of falling back to property defaults.
+			constexpr IFlowGraphOutputDataReceiverInterface* OutputDataReceiverInterface = nullptr;
+			LoadedInstance->LoadInstance(*AssetRecord, DataPinValueSupplier.GetInterface(), OutputDataReceiverInterface);
 		}
 	}
 }
@@ -497,7 +505,10 @@ void UFlowSubsystem::LoadSubFlow(UFlowNode_SubGraph* SubGraphNode, const FString
 		UFlowAsset* LoadedInstance = CreateSubFlow(SubGraphNode, SavedAssetInstanceName);
 		if (LoadedInstance)
 		{
-			LoadedInstance->LoadInstance(*AssetRecord);
+			// LOCAL MOD: same wiring CreateSubFlow's StartFlow(SubGraphNode, SubGraphNode) does on
+			// the fresh path. The parent link is already restored (CreateSubFlow set NodeOwningThisAssetInstance
+			// and ActiveSubGraphs), so the restored child resolves its Start node pins through the parent again.
+			LoadedInstance->LoadInstance(*AssetRecord, SubGraphNode, SubGraphNode);
 		}
 	}
 }

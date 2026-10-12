@@ -147,6 +147,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "FlowSubsystem")
 	virtual void LoadRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const FString& SavedAssetInstanceName, const bool bAllowMultipleInstances);
 
+	/* LOCAL MOD: restoring counterpart of StartRootFlow, taking the same DataPinValueSupplier so a
+	 * root graph loaded from a SaveGame resolves its Start node pins from the same source the fresh start used.
+	 * The BlueprintCallable form above forwards here with no supplier, so upstream callers are unaffected. */
+	virtual void LoadRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const FString& SavedAssetInstanceName, const bool bAllowMultipleInstances, const TScriptInterface<IFlowDataPinValueSupplierInterface> DataPinValueSupplier);
+
 	UFUNCTION(BlueprintCallable, Category = "FlowSubsystem")
 	virtual void LoadSubFlow(UFlowNode_SubGraph* SubGraphNode, const FString& SavedAssetInstanceName);
 

@@ -665,6 +665,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SaveGame")
 	void LoadInstance(const FFlowAssetSaveData& AssetRecord);
 
+	/* LOCAL MOD: supplier/receiver overload mirroring StartFlow, so a restored graph re-establishes
+	 * the same data pin plumbing the fresh path sets up. Without it the Start node has no external supplier after
+	 * a load and every pin fed from FlowAssetParams or a parent SubGraph node silently falls back to its property
+	 * default. Kept as an overload rather than extra parameters because the one-argument form is BlueprintCallable
+	 * and raw interface pointers cannot cross that boundary. */
+	void LoadInstance(const FFlowAssetSaveData& AssetRecord, IFlowDataPinValueSupplierInterface* DataPinValueSupplier, IFlowGraphOutputDataReceiverInterface* InOutputDataReceiver);
+
 protected:
 	virtual void OnActivationStateLoaded(UFlowNode* Node);
 
