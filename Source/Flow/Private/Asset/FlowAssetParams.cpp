@@ -169,13 +169,13 @@ EFlowReconcilePropertiesResult UFlowAssetParams::ReconcilePropertiesWithStartNod
 	const TSoftObjectPtr<UFlowAsset>& InOwnerFlowAsset,
 	TArray<FFlowNamedDataPinProperty>& MutablePropertiesFromStartNode)
 {
-	OwnerFlowAsset = InOwnerFlowAsset;
-
-	if (OwnerFlowAsset.IsNull())
+	if (InOwnerFlowAsset.IsNull())
 	{
 		return EFlowReconcilePropertiesResult::Error_InvalidAsset;
 	}
 
+	// LOCAL MOD: OwnerFlowAsset is not assigned unconditionally here; ConfigureFlowAssetParams (or the owner check below)
+	// assigns it, so its reference-change detection sees the old value and an unchanged owner does not dirty the package.
 	const EFlowReconcilePropertiesResult PropertiesMatchResult = FFlowAssetParamsUtils::CheckPropertiesMatch(Properties, MutablePropertiesFromStartNode);
 	const FDateTime ParamsTimestamp = FFlowAssetParamsUtils::GetLastSavedTimestampForObject(this);
 
@@ -195,9 +195,19 @@ EFlowReconcilePropertiesResult UFlowAssetParams::ReconcilePropertiesWithStartNod
 		return EFlowReconcilePropertiesResult::NoChanges;
 	}
 
+	// LOCAL MOD: the params-newer branch still records a changed owner, but only dirties the package when it actually changes.
+	if (OwnerFlowAsset != InOwnerFlowAsset)
+	{
+		Modify();
+		OwnerFlowAsset = InOwnerFlowAsset;
+		MarkPackageDirty();
+	}
+
 	MutablePropertiesFromStartNode = Properties;
 
-	FFlowNamedDataPinProperty::ConfigurePropertiesForFlowAssetParams(MutablePropertiesFromStartNode);
+	// LOCAL MOD: these properties live on the Start node, so they take the Start node configuration
+	// (bMayChangeNameAndType = true); the params configuration would lock renaming in the graph.
+	FFlowNamedDataPinProperty::ConfigurePropertiesForFlowAssetStartNode(MutablePropertiesFromStartNode);
 
 	return EFlowReconcilePropertiesResult::AssetPropertyValuesUpdated;
 }
@@ -288,13 +298,12 @@ EFlowReconcilePropertiesResult UFlowAssetParams::ReconcilePropertiesWithParentPa
 		}
 	}
 
-	for (FFlowNamedDataPinProperty& LocalProp : Properties)
+	for (const FFlowNamedDataPinProperty& LocalProp : Properties)
 	{
 		if (!FFlowAssetParamsUtils::FindPropertyByGuid(ParentProps, LocalProp.Guid))
 		{
-			LocalProp.bIsOverride = true;
-
-			NewProperties.Add(LocalProp);
+			FFlowNamedDataPinProperty& NewProp = NewProperties.Add_GetRef(LocalProp);
+			NewProp.bIsOverride = true;
 		}
 	}
 

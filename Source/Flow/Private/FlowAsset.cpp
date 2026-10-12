@@ -145,7 +145,9 @@ void UFlowAsset::PostLoad()
 
 void UFlowAsset::PreSaveRoot(FObjectPreSaveRootContext ObjectSaveContext)
 {
-	ReconcileBaseAssetParams(FDateTime::Now());
+	// LOCAL MOD: file timestamps are UTC, so compare against UtcNow (local Now() would lose to a params
+	// file saved within the last few hours in timezones behind UTC).
+	ReconcileBaseAssetParams(FDateTime::UtcNow());
 	(void)RepairDuplicateAddOnGuids();
 }
 
