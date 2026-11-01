@@ -1543,6 +1543,33 @@ void UFlowNode::SaveInstance(FFlowNodeSaveData& NodeRecord)
 	FMemoryWriter MemoryWriter(NodeRecord.NodeData, true);
 	FFlowArchive Ar(MemoryWriter);
 	Serialize(Ar);
+
+	// LOCAL MOD: AddOn SaveGame state is appended to the node's own record: the number of AddOns, then per AddOn
+	// (recursive, ForEachAddOn order) its NodeGuid and a length-prefixed blob of its SaveGame properties. The blob is
+	// written through its own FFlowArchive, so LoadInstance can skip an AddOn it no longer finds by length alone.
+	TArray<UFlowNodeAddOn*> SavedAddOns;
+	(void) ForEachAddOn(
+		[&SavedAddOns](UFlowNodeAddOn& AddOn)
+		{
+			SavedAddOns.Add(&AddOn);
+			return EFlowForEachAddOnFunctionReturnValue::Continue;
+		});
+
+	int32 AddOnCount = SavedAddOns.Num();
+	Ar << AddOnCount;
+
+	for (UFlowNodeAddOn* AddOn : SavedAddOns)
+	{
+		FGuid AddOnGuid = AddOn->GetGuid();
+		Ar << AddOnGuid;
+
+		TArray<uint8> AddOnData;
+		FMemoryWriter AddOnWriter(AddOnData, true);
+		FFlowArchive AddOnAr(AddOnWriter);
+		AddOn->Serialize(AddOnAr);
+
+		Ar << AddOnData;
+	}
 }
 
 void UFlowNode::LoadInstance(const FFlowNodeSaveData& NodeRecord)
@@ -1550,6 +1577,43 @@ void UFlowNode::LoadInstance(const FFlowNodeSaveData& NodeRecord)
 	FMemoryReader MemoryReader(NodeRecord.NodeData, true);
 	FFlowArchive Ar(MemoryReader);
 	Serialize(Ar);
+
+	// LOCAL MOD: restore the AddOn SaveGame state SaveInstance appends, before OnLoad below, so a node's OnLoad already
+	// sees its AddOns' restored state. A record written without the trailing data simply ends here. Entries are matched
+	// by AddOn NodeGuid; an AddOn that no longer exists on the node is skipped.
+	if (!MemoryReader.AtEnd())
+	{
+		int32 AddOnCount = 0;
+		Ar << AddOnCount;
+
+		for (int32 AddOnIndex = 0; AddOnIndex < AddOnCount && !MemoryReader.IsError(); ++AddOnIndex)
+		{
+			FGuid AddOnGuid;
+			Ar << AddOnGuid;
+
+			TArray<uint8> AddOnData;
+			Ar << AddOnData;
+
+			if (MemoryReader.IsError())
+			{
+				break;
+			}
+
+			(void) ForEachAddOn(
+				[&AddOnGuid, &AddOnData](UFlowNodeAddOn& AddOn)
+				{
+					if (AddOn.GetGuid() != AddOnGuid)
+					{
+						return EFlowForEachAddOnFunctionReturnValue::Continue;
+					}
+
+					FMemoryReader AddOnReader(AddOnData, true);
+					FFlowArchive AddOnAr(AddOnReader);
+					AddOn.Serialize(AddOnAr);
+					return EFlowForEachAddOnFunctionReturnValue::BreakWithSuccess;
+				});
+		}
+	}
 
 	if (UFlowAsset* FlowAsset = GetFlowAsset())
 	{
